@@ -1,20 +1,106 @@
-# Android / Gradle
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+.venv
+pip-log.txt
+pip-delete-this-directory.txt
+.pytest_cache/
+.coverage
+htmlcov/
+*.egg-info/
+dist/
+build/
+
+# Flask
+instance/
+.webassets-cache
+
+# Android
+*.iml
+.gradle
+/local.properties
+/.idea/
+.DS_Store
+/build
+/captures
+.externalNativeBuild
+.cxx
+*.apk
+*.ap_
+*.aab
+output.json
+
+# Android Studio
+.idea/
+*.iws
+*.ipr
+out/
+.navigation/
+captures/
+
+# Gradle
 .gradle/
 build/
-**/build/
-local.properties
+gradle-app.setting
+!gradle-wrapper.jar
+.gradletasknamecache
 
-# Android Studio / IntelliJ
-.idea/
-*.iml
-
-# OS
-.DS_Store
-
-# Logs
-*.log
-
-# Keystore
+# Keystore files
 *.jks
 *.keystore
 
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode/
+.vs/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs
+*.log
+logs/
+
+# Testing
+coverage/
+.nyc_output/
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Secrets
+secrets.yaml
+credentials.json
+service-account.json
+
+# Documentation build
+docs/_build/
+site/
+
+# Node (if used)
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
