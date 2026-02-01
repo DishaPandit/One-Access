@@ -10,17 +10,36 @@ android {
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "com.oneaccess.app"
+        applicationId = "com.oneaccess.app"  // TODO: Change to your unique package name (e.g., com.yourcompany.oneaccess)
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = 1  // Increment this for each release (1, 2, 3, ...)
+        versionName = "1.0.0"  // User-visible version (1.0.0, 1.0.1, etc.)
+        
+        // App name and description
+        setProperty("archivesBaseName", "OneAccess-v$versionName")
+    }
+
+    signingConfigs {
+        create("release") {
+            // TODO: Update these paths after creating your keystore
+            storeFile = file("../release-keystore.jks")
+            storePassword = System.getenv("KEYSTORE_PASSWORD") ?: "YOUR_STORE_PASSWORD"
+            keyAlias = System.getenv("KEY_ALIAS") ?: "oneaccess-key"
+            keyPassword = System.getenv("KEY_PASSWORD") ?: "YOUR_KEY_PASSWORD"
+        }
     }
 
     buildTypes {
         release {
-            isMinifyEnabled = false
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            // signingConfig = signingConfigs.getByName("release")  // Uncomment after setting up keystore
+        }
+        debug {
+            applicationIdSuffix = ".debug"
+            versionNameSuffix = "-debug"
         }
     }
 

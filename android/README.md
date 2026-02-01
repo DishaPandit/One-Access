@@ -5,6 +5,7 @@ Android app (Kotlin + Jetpack Compose) that behaves like an NFC card using **Hos
 It talks to the local backend in `../backend`:
 - `POST /auth/login` (demo login)
 - `POST /hce/token` (issues short-lived signed token)
+- **Time tracking**: View real-time duration inside buildings with automatic entry/exit tracking
 
 ## Prereqs
 

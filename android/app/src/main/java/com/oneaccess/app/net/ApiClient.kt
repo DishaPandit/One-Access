@@ -46,6 +46,25 @@ class ApiClient(private val baseUrl: String) {
         }
     }
 
+    fun issueHceToken(accessToken: String, gateId: String, readerNonce: String, deviceId: String): String {
+        val bodyJson = JSONObject()
+            .put("gateId", gateId)
+            .put("readerNonce", readerNonce)
+            .put("deviceId", deviceId)
+            .toString()
+        val req = Request.Builder()
+            .url("$baseUrl/qr/token")
+            .header("Authorization", "Bearer $accessToken")
+            .post(bodyJson.toRequestBody(jsonMedia))
+            .build()
+        client.newCall(req).execute().use { resp ->
+            val body = resp.body?.string().orEmpty()
+            if (!resp.isSuccessful) throw RuntimeException("HCE token failed: ${resp.code} $body")
+            val json = JSONObject(body)
+            return json.getString("token")
+        }
+    }
+
     fun createDelegation(accessToken: String, delegateeEmail: String, gateIds: List<String>, hours: Int): String {
         val bodyJson = JSONObject()
             .put("delegateeEmail", delegateeEmail)
@@ -105,6 +124,48 @@ class ApiClient(private val baseUrl: String) {
             )
         }
     }
+
+    fun getCurrentTimeSession(accessToken: String): TimeSessionResponse? {
+        val req = Request.Builder()
+            .url("$baseUrl/time/current")
+            .header("Authorization", "Bearer $accessToken")
+            .get()
+            .build()
+        client.newCall(req).execute().use { resp ->
+            val body = resp.body?.string().orEmpty()
+            if (!resp.isSuccessful) throw RuntimeException("Time session failed: ${resp.code} $body")
+            val json = JSONObject(body)
+            val activeSession = json.optJSONObject("activeSession") ?: return null
+            return TimeSessionResponse(
+                sessionId = activeSession.getString("sessionId"),
+                entryTime = activeSession.getString("entryTime"),
+                currentDurationSeconds = activeSession.getInt("currentDurationSeconds"),
+                currentDurationFormatted = activeSession.getString("currentDurationFormatted"),
+                gateIdEntry = activeSession.getString("gateIdEntry")
+            )
+        }
+    }
+
+    fun getTimeSummary(accessToken: String): TimeSummaryResponse {
+        val req = Request.Builder()
+            .url("$baseUrl/time/summary")
+            .header("Authorization", "Bearer $accessToken")
+            .get()
+            .build()
+        client.newCall(req).execute().use { resp ->
+            val body = resp.body?.string().orEmpty()
+            if (!resp.isSuccessful) throw RuntimeException("Time summary failed: ${resp.code} $body")
+            val json = JSONObject(body).getJSONObject("summary")
+            return TimeSummaryResponse(
+                totalSessions = json.getInt("totalSessions"),
+                totalTimeFormatted = json.getString("totalTimeFormatted"),
+                averageTimeFormatted = json.getString("averageTimeFormatted"),
+                todaySessions = json.getInt("todaySessions"),
+                todayTimeFormatted = json.getString("todayTimeFormatted"),
+                hasActiveSession = json.getBoolean("hasActiveSession")
+            )
+        }
+    }
 }
 
 data class QrTokenResponse(
@@ -117,6 +178,23 @@ data class VisitorQrTokenResponse(
     val expEpochSeconds: Long,
     val visitorName: String,
     val remainingUses: Int
+)
+
+data class TimeSessionResponse(
+    val sessionId: String,
+    val entryTime: String,
+    val currentDurationSeconds: Int,
+    val currentDurationFormatted: String,
+    val gateIdEntry: String
+)
+
+data class TimeSummaryResponse(
+    val totalSessions: Int,
+    val totalTimeFormatted: String,
+    val averageTimeFormatted: String,
+    val todaySessions: Int,
+    val todayTimeFormatted: String,
+    val hasActiveSession: Boolean
 )
 
 

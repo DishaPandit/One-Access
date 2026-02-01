@@ -70,6 +70,23 @@ class VisitorPass:
             object.__setattr__(self, 'created_at', datetime.utcnow())
 
 
+@dataclass
+class TimeSession:
+    session_id: str
+    user_id: str
+    company_id: str
+    gate_id_entry: str  # Which gate they entered through
+    entry_time: datetime
+    exit_time: datetime | None = None
+    duration_seconds: int | None = None
+    status: str = "ACTIVE"  # "ACTIVE" | "COMPLETED"
+
+    def complete_session(self, gate_id_exit: str, exit_time: datetime) -> None:
+        object.__setattr__(self, 'exit_time', exit_time)
+        object.__setattr__(self, 'duration_seconds', int((exit_time - self.entry_time).total_seconds()))
+        object.__setattr__(self, 'status', 'COMPLETED')
+
+
 class InMemoryStore:
     """
     MVP in-memory store. Replace with Postgres later.
@@ -94,6 +111,10 @@ class InMemoryStore:
         # New collections for extended features
         self.delegations: dict[str, Delegation] = {}
         self.visitor_passes: dict[str, VisitorPass] = {}
+        
+        # Time tracking sessions
+        self.time_sessions: dict[str, TimeSession] = {}  # session_id -> TimeSession
+        self.active_sessions: dict[str, str] = {}  # user_id -> session_id (for quick lookup)
 
     def record(self, *, user_id: str | None, company_id: str | None, gate_id: str, reader_id: str, 
                decision: str, reason: str, door_status: str = "UNKNOWN", 
@@ -160,4 +181,55 @@ class InMemoryStore:
     def get_visitor_pass(self, pass_id: str) -> VisitorPass | None:
         """Get visitor pass by ID"""
         return self.visitor_passes.get(pass_id)
+
+    def start_time_session(self, user_id: str, company_id: str, gate_id: str) -> str:
+        """Start a time tracking session for entry"""
+        # Close any existing active session for this user (shouldn't happen, but handle it)
+        if user_id in self.active_sessions:
+            old_session_id = self.active_sessions[user_id]
+            if old_session_id in self.time_sessions:
+                old_session = self.time_sessions[old_session_id]
+                if old_session.status == "ACTIVE":
+                    # Auto-complete the old session
+                    old_session.complete_session(gate_id, datetime.utcnow())
+        
+        session_id = f"SES_{uuid.uuid4().hex[:12].upper()}"
+        session = TimeSession(
+            session_id=session_id,
+            user_id=user_id,
+            company_id=company_id,
+            gate_id_entry=gate_id,
+            entry_time=datetime.utcnow(),
+            status="ACTIVE"
+        )
+        self.time_sessions[session_id] = session
+        self.active_sessions[user_id] = session_id
+        return session_id
+
+    def end_time_session(self, user_id: str, gate_id: str) -> TimeSession | None:
+        """End the active time tracking session for exit"""
+        if user_id not in self.active_sessions:
+            return None
+        
+        session_id = self.active_sessions[user_id]
+        session = self.time_sessions.get(session_id)
+        if not session or session.status != "ACTIVE":
+            return None
+        
+        session.complete_session(gate_id, datetime.utcnow())
+        del self.active_sessions[user_id]
+        return session
+
+    def get_user_time_sessions(self, user_id: str, limit: int = 50) -> list[TimeSession]:
+        """Get time sessions for a user, most recent first"""
+        sessions = [s for s in self.time_sessions.values() if s.user_id == user_id]
+        sessions.sort(key=lambda s: s.entry_time, reverse=True)
+        return sessions[:limit]
+
+    def get_active_session(self, user_id: str) -> TimeSession | None:
+        """Get active session for a user"""
+        if user_id not in self.active_sessions:
+            return None
+        session_id = self.active_sessions[user_id]
+        return self.time_sessions.get(session_id)
 

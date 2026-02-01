@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: oneaccess-backend
+    env: python
+    region: oregon
+    plan: free
+    buildCommand: cd backend && pip install -r requirements.txt
+    startCommand: cd backend && python -m flask run --host=0.0.0.0 --port=$PORT
+    envVars:
+      - key: FLASK_APP
+        value: app.main:app
+      - key: ONEACCESS_TOKEN_TTL_SECONDS
+        value: 20

@@ -67,7 +67,7 @@ fun OneAccessApp() {
     var accessToken by remember { mutableStateOf(AppState.accessToken(context)) }
     val events = remember { mutableStateListOf<String>() }
     var selectedTab by remember { mutableStateOf(0) }
-    val tabs = listOf("Access", "Delegate", "Visitors")
+    val tabs = listOf("Access", "Delegate", "Visitors", "Time")
 
     LaunchedEffect(backendUrl) { AppState.setBackendUrl(context, backendUrl) }
     LaunchedEffect(email) { AppState.setEmail(context, email) }
@@ -197,6 +197,13 @@ fun OneAccessApp() {
                         backendUrl = backendUrl,
                         onEvent = { event -> events.add(0, event) }
                     )
+                    3 -> TimeTrackingScreen(
+                        backendUrl = backendUrl,
+                        accessToken = accessToken,
+                        onEvent = { event -> events.add(0, event) },
+                        context = context,
+                        scope = scope
+                    )
                 }
 
                 Card(shape = RoundedCornerShape(16.dp)) {
@@ -233,6 +240,7 @@ fun AccessCard(
     backendUrl: String,
     onEvent: (String) -> Unit
 ) {
+    val context = androidx.compose.ui.platform.LocalContext.current
     val scope = androidx.compose.runtime.rememberCoroutineScope()
     var qrBitmap by remember { mutableStateOf<Bitmap?>(null) }
     var isGenerating by remember { mutableStateOf(false) }
@@ -251,7 +259,7 @@ fun AccessCard(
             try {
                 isGenerating = true
                 val readerNonce = UUID.randomUUID().toString().replace("-", "").take(16).uppercase()
-                val deviceId = AppState.deviceId(androidx.compose.ui.platform.LocalContext.current)
+                val deviceId = AppState.deviceId(context)
                 
                 withContext(Dispatchers.IO) {
                     val response = ApiClient(backendUrl.trim().trimEnd('/')).issueQrToken(

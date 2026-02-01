@@ -5,6 +5,7 @@ Flask backend for an NFC (ISO-DEP) HCE access system:
 - Issues **short-lived signed tokens** for a given `gateId`
 - Verifies tokens for a reader / gate
 - Enforces policy: **all employees** can access `MAIN_GATE`; **only same-company** can access building gates
+- **Time tracking**: Automatically tracks entry/exit times and calculates duration spent inside buildings
 
 ## Prereqs
 
@@ -32,6 +33,9 @@ With the server running, in another PowerShell terminal:
 ```powershell
 cd backend
 .\scripts\smoke_test.ps1
+
+# Test time tracking feature
+.\scripts\test_time_tracking.ps1
 ```
 
 ## Quick test (no Android required)

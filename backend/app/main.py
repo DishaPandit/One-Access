@@ -57,6 +57,20 @@ def _get_user_from_bearer() -> User:
     return user
 
 
+def _format_duration(seconds: int) -> str:
+    """Format duration in seconds to human-readable format"""
+    hours = seconds // 3600
+    minutes = (seconds % 3600) // 60
+    secs = seconds % 60
+    
+    if hours > 0:
+        return f"{hours}h {minutes}m {secs}s"
+    elif minutes > 0:
+        return f"{minutes}m {secs}s"
+    else:
+        return f"{secs}s"
+
+
 @app.get("/.well-known/jwks.json")
 def jwks():
     return jsonify({"keys": [signing_keys.public_jwk()]})
@@ -144,6 +158,7 @@ def verify():
         gate_id = str(data.get("gateId", "")).strip()
         token = str(data.get("token", "")).strip()
         door_opened = bool(data.get("doorOpened", False))
+        direction = str(data.get("direction", "ENTRY")).strip().upper()  # "ENTRY" or "EXIT"
 
         if not reader_id or not gate_id or not token:
             return _json_error("Missing readerId/gateId/token", 400)
@@ -227,7 +242,29 @@ def verify():
             if visitor_pass:
                 visitor_pass.used_count += 1
         
-        return jsonify({"decision": "ALLOW", "reason": "OK"})
+        # Time tracking for building gates (if door actually opened)
+        session_info = None
+        if door_opened and gate.kind == "BUILDING":
+            if direction == "ENTRY":
+                session_id = store.start_time_session(user.user_id, user.company_id, gate_id)
+                session_info = {"action": "SESSION_STARTED", "sessionId": session_id}
+            elif direction == "EXIT":
+                session = store.end_time_session(user.user_id, gate_id)
+                if session:
+                    session_info = {
+                        "action": "SESSION_ENDED",
+                        "sessionId": session.session_id,
+                        "entryTime": session.entry_time.isoformat(),
+                        "exitTime": session.exit_time.isoformat() if session.exit_time else None,
+                        "durationSeconds": session.duration_seconds,
+                        "durationFormatted": _format_duration(session.duration_seconds) if session.duration_seconds else None
+                    }
+        
+        response = {"decision": "ALLOW", "reason": "OK"}
+        if session_info:
+            response["timeTracking"] = session_info
+        
+        return jsonify(response)
     except ValueError as e:
         return _json_error(str(e), 400)
 
@@ -459,6 +496,107 @@ def audit():
     )
 
 
+@app.get("/time/sessions")
+def get_time_sessions():
+    """Get time tracking sessions for the logged-in user"""
+    try:
+        user = _get_user_from_bearer()
+        limit_raw = request.args.get("limit", "50")
+        try:
+            limit = max(1, min(100, int(limit_raw)))
+        except ValueError:
+            limit = 50
+        
+        sessions = store.get_user_time_sessions(user.user_id, limit)
+        
+        return jsonify({
+            "sessions": [
+                {
+                    "sessionId": s.session_id,
+                    "userId": s.user_id,
+                    "companyId": s.company_id,
+                    "gateIdEntry": s.gate_id_entry,
+                    "entryTime": s.entry_time.isoformat(),
+                    "exitTime": s.exit_time.isoformat() if s.exit_time else None,
+                    "durationSeconds": s.duration_seconds,
+                    "durationFormatted": _format_duration(s.duration_seconds) if s.duration_seconds else None,
+                    "status": s.status
+                }
+                for s in sessions
+            ]
+        })
+    except PermissionError as e:
+        return _json_error(str(e), 401)
+
+
+@app.get("/time/current")
+def get_current_session():
+    """Get the current active session for the logged-in user"""
+    try:
+        user = _get_user_from_bearer()
+        session = store.get_active_session(user.user_id)
+        
+        if not session:
+            return jsonify({"activeSession": None})
+        
+        # Calculate current duration for active session
+        current_duration = int((datetime.utcnow() - session.entry_time).total_seconds())
+        
+        return jsonify({
+            "activeSession": {
+                "sessionId": session.session_id,
+                "userId": session.user_id,
+                "companyId": session.company_id,
+                "gateIdEntry": session.gate_id_entry,
+                "entryTime": session.entry_time.isoformat(),
+                "currentDurationSeconds": current_duration,
+                "currentDurationFormatted": _format_duration(current_duration),
+                "status": session.status
+            }
+        })
+    except PermissionError as e:
+        return _json_error(str(e), 401)
+
+
+@app.get("/time/summary")
+def get_time_summary():
+    """Get time tracking summary statistics for the logged-in user"""
+    try:
+        user = _get_user_from_bearer()
+        sessions = store.get_user_time_sessions(user.user_id, limit=1000)
+        
+        completed_sessions = [s for s in sessions if s.status == "COMPLETED" and s.duration_seconds]
+        
+        total_time = sum(s.duration_seconds for s in completed_sessions)
+        avg_time = total_time // len(completed_sessions) if completed_sessions else 0
+        
+        # Today's sessions
+        today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+        today_sessions = [s for s in completed_sessions if s.entry_time >= today_start]
+        today_total = sum(s.duration_seconds for s in today_sessions)
+        
+        return jsonify({
+            "summary": {
+                "totalSessions": len(completed_sessions),
+                "totalTimeSeconds": total_time,
+                "totalTimeFormatted": _format_duration(total_time),
+                "averageTimeSeconds": avg_time,
+                "averageTimeFormatted": _format_duration(avg_time),
+                "todaySessions": len(today_sessions),
+                "todayTimeSeconds": today_total,
+                "todayTimeFormatted": _format_duration(today_total),
+                "hasActiveSession": user.user_id in store.active_sessions
+            }
+        })
+    except PermissionError as e:
+        return _json_error(str(e), 401)
+
+
 def create_app() -> Flask:
     return app
+
+
+if __name__ == "__main__":
+    # For local development
+    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 8000)), debug=False)
 
