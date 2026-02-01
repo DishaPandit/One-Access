@@ -16,7 +16,7 @@ object AppState {
 
     fun backendUrl(context: Context): String =
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-            .getString(KEY_BACKEND, "http://10.0.2.2:8000")!! // emulator default
+            .getString(KEY_BACKEND, "https://oneaccess-backend.onrender.com")!! // production backend
 
     fun setBackendUrl(context: Context, value: String) {
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit { putString(KEY_BACKEND, value.trim()) }

@@ -15,6 +15,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -45,6 +47,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.oneaccess.app.net.ApiClient
+import com.oneaccess.app.net.TimeSessionResponse
+import com.oneaccess.app.net.TimeSummaryResponse
 import com.oneaccess.app.qr.QRCodeGenerator
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -102,6 +106,7 @@ fun OneAccessApp() {
             Column(
                 modifier = Modifier
                     .fillMaxSize()
+                    .verticalScroll(rememberScrollState())
                     .padding(horizontal = 16.dp, vertical = 12.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
@@ -120,22 +125,12 @@ fun OneAccessApp() {
                             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
                         ) {
                             Column(modifier = Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                                Text("Settings", fontWeight = FontWeight.SemiBold)
-
-                                OutlinedTextField(
-                                    value = backendUrl,
-                                    onValueChange = { backendUrl = it },
-                                    label = { Text("Backend URL") },
-                                    supportingText = { Text("Emulator: http://10.0.2.2:8000 | Phone: http://<your-laptop-ip>:8000") },
-                                    singleLine = true,
-                                    modifier = Modifier.fillMaxWidth()
-                                )
+                                Text("Sign In", fontWeight = FontWeight.SemiBold)
 
                                 OutlinedTextField(
                                     value = email,
                                     onValueChange = { email = it },
-                                    label = { Text("Email (demo)") },
-                                    supportingText = { Text("Try: alice@acme.com or bob@globex.com") },
+                                    label = { Text("Email") },
                                     singleLine = true,
                                     modifier = Modifier.fillMaxWidth()
                                 )
@@ -144,10 +139,23 @@ fun OneAccessApp() {
                                     value = gateId,
                                     onValueChange = { gateId = it },
                                     label = { Text("Gate ID") },
-                                    supportingText = { Text("MAIN_GATE, BLD_ACME, BLD_GLOBEX") },
                                     singleLine = true,
                                     modifier = Modifier.fillMaxWidth()
                                 )
+                                
+                                var showAdvanced by remember { mutableStateOf(false) }
+                                TextButton(onClick = { showAdvanced = !showAdvanced }) {
+                                    Text(if (showAdvanced) "Hide Advanced" else "Advanced")
+                                }
+                                if (showAdvanced) {
+                                    OutlinedTextField(
+                                        value = backendUrl,
+                                        onValueChange = { backendUrl = it },
+                                        label = { Text("Backend URL") },
+                                        singleLine = true,
+                                        modifier = Modifier.fillMaxWidth()
+                                    )
+                                }
 
                                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
                                     if (accessToken == null) {
@@ -197,25 +205,14 @@ fun OneAccessApp() {
                         backendUrl = backendUrl,
                         onEvent = { event -> events.add(0, event) }
                     )
-                    3 -> TimeTrackingScreen(
+                    3 -> TimeTrackingCard(
                         backendUrl = backendUrl,
                         accessToken = accessToken,
-                        onEvent = { event -> events.add(0, event) },
-                        context = context,
                         scope = scope
                     )
                 }
 
-                Card(shape = RoundedCornerShape(16.dp)) {
-                    Column(modifier = Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text("Recent", fontWeight = FontWeight.SemiBold)
-                        if (events.isEmpty()) {
-                            Text("No events yet.", style = MaterialTheme.typography.bodySmall)
-                        } else {
-                            events.take(6).forEach { Text(it, style = MaterialTheme.typography.bodySmall) }
-                        }
-                    }
-                }
+                // Recent events card removed - keeping events internal only
             }
         }
     }
@@ -329,7 +326,7 @@ fun AccessCard(
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        "Scan QR code at reader\n(Auto-refreshes every 25s)",
+                        "Scan at reader",
                         style = MaterialTheme.typography.bodySmall,
                         textAlign = TextAlign.Center
                     )
@@ -343,6 +340,239 @@ fun AccessCard(
                 }
             }
         }
+    }
+}
+
+@Composable
+fun TimeTrackingCard(
+    backendUrl: String,
+    accessToken: String?,
+    scope: CoroutineScope
+) {
+    var currentSession by remember { mutableStateOf<TimeSessionResponse?>(null) }
+    var summary by remember { mutableStateOf<TimeSummaryResponse?>(null) }
+    var loading by remember { mutableStateOf(true) }
+    var error by remember { mutableStateOf<String?>(null) }
+    var currentDuration by remember { mutableStateOf(0) }
+
+    // Fetch data every 5 seconds if signed in
+    LaunchedEffect(accessToken) {
+        if (accessToken != null) {
+            while (true) {
+                scope.launch(Dispatchers.IO) {
+                    runCatching {
+                        val api = ApiClient(backendUrl.trim().trimEnd('/'))
+                        val session = api.getCurrentTimeSession(accessToken)
+                        val summaryData = api.getTimeSummary(accessToken)
+                        withContext(Dispatchers.Main) {
+                            currentSession = session
+                            summary = summaryData
+                            loading = false
+                            error = null
+                        }
+                    }.onFailure { t ->
+                        withContext(Dispatchers.Main) {
+                            error = t.message
+                            loading = false
+                        }
+                    }
+                }
+                delay(5000)
+            }
+        } else {
+            loading = false
+        }
+    }
+
+    // Update current duration every second if there's an active session
+    LaunchedEffect(currentSession, summary) {
+        val session = currentSession
+        val summaryData = summary
+        if (session != null && summaryData?.hasActiveSession == true) {
+            while (true) {
+                val entryTime = try {
+                    java.time.Instant.parse(session.entryTime)
+                } catch (e: Exception) {
+                    null
+                }
+                if (entryTime != null) {
+                    val now = java.time.Instant.now()
+                    currentDuration = java.time.Duration.between(entryTime, now).seconds.toInt()
+                }
+                delay(1000)
+            }
+        }
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        Text(
+            "Time Tracking",
+            style = MaterialTheme.typography.headlineSmall,
+            fontWeight = FontWeight.Bold
+        )
+
+        if (accessToken == null) {
+            Card(
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)
+            ) {
+                Text(
+                    text = "Please sign in first",
+                    modifier = Modifier.padding(16.dp),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onErrorContainer
+                )
+            }
+        } else if (loading) {
+            Box(
+                modifier = Modifier.fillMaxWidth().padding(32.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                CircularProgressIndicator()
+            }
+        } else if (error != null) {
+            Card(
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)
+            ) {
+                Text(
+                    text = "Error: $error",
+                    modifier = Modifier.padding(16.dp),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onErrorContainer
+                )
+            }
+        } else {
+            // Current Session Card
+            val session = currentSession
+            val summaryData = summary
+            Card(
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = if (summaryData?.hasActiveSession == true) 
+                        MaterialTheme.colorScheme.primaryContainer 
+                    else 
+                        MaterialTheme.colorScheme.surfaceVariant
+                )
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(
+                        "Current Session",
+                        fontWeight = FontWeight.SemiBold,
+                        style = MaterialTheme.typography.titleMedium
+                    )
+                    
+                    if (session != null && summaryData?.hasActiveSession == true) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text("Status:", style = MaterialTheme.typography.bodyMedium)
+                            Text("Active", fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.primary)
+                        }
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text("Entry Time:", style = MaterialTheme.typography.bodyMedium)
+                            Text(
+                                session.entryTime.substring(11, 19),
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text("Duration:", style = MaterialTheme.typography.bodyMedium)
+                            Text(
+                                formatDuration(currentDuration),
+                                fontWeight = FontWeight.Bold,
+                                style = MaterialTheme.typography.titleMedium,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                    } else {
+                        Text(
+                            "No active session",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+
+            // Summary Card
+            if (summaryData != null) {
+                Card(
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text(
+                            "Summary",
+                            fontWeight = FontWeight.SemiBold,
+                            style = MaterialTheme.typography.titleMedium
+                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text("Total Sessions:", style = MaterialTheme.typography.bodyMedium)
+                            Text("${summaryData.totalSessions}", fontWeight = FontWeight.Medium)
+                        }
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text("Total Time:", style = MaterialTheme.typography.bodyMedium)
+                            Text(
+                                summaryData.totalTimeFormatted,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+                        if (summaryData.averageTimeFormatted.isNotEmpty()) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text("Average:", style = MaterialTheme.typography.bodyMedium)
+                                Text(
+                                    summaryData.averageTimeFormatted,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+fun formatDuration(seconds: Int): String {
+    val hours = seconds / 3600
+    val minutes = (seconds % 3600) / 60
+    val secs = seconds % 60
+    return when {
+        hours > 0 -> String.format("%dh %02dm %02ds", hours, minutes, secs)
+        minutes > 0 -> String.format("%dm %02ds", minutes, secs)
+        else -> String.format("%ds", secs)
     }
 }
 

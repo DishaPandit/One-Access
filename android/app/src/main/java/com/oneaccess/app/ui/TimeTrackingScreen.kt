@@ -9,6 +9,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Divider
@@ -47,27 +49,34 @@ fun TimeTrackingScreen(
 
     // Auto-refresh current session every 5 seconds if there's an active session
     LaunchedEffect(accessToken) {
+        loading = false
         if (accessToken != null) {
             while (true) {
-                scope.launch(Dispatchers.IO) {
-                    runCatching {
-                        val api = ApiClient(backendUrl.trim().trimEnd('/'))
-                        val session = api.getCurrentTimeSession(accessToken)
-                        val summaryData = api.getTimeSummary(accessToken)
-                        withContext(Dispatchers.Main) {
-                            currentSession = session
-                            summary = summaryData
-                            loading = false
-                            error = null
-                        }
-                    }.onFailure { t ->
-                        withContext(Dispatchers.Main) {
-                            error = t.message ?: t.toString()
-                            loading = false
+                try {
+                    scope.launch(Dispatchers.IO) {
+                        runCatching {
+                            val api = ApiClient(backendUrl.trim().trimEnd('/'))
+                            val session = api.getCurrentTimeSession(accessToken)
+                            val summaryData = api.getTimeSummary(accessToken)
+                            withContext(Dispatchers.Main) {
+                                currentSession = session
+                                summary = summaryData
+                                loading = false
+                                error = null
+                            }
+                        }.onFailure { t ->
+                            withContext(Dispatchers.Main) {
+                                error = "Network error: ${t.message}"
+                                loading = false
+                            }
                         }
                     }
+                    delay(5000) // Refresh every 5 seconds
+                } catch (e: Exception) {
+                    error = "Error: ${e.message}"
+                    loading = false
+                    delay(5000)
                 }
-                delay(5000) // Refresh every 5 seconds
             }
         } else {
             loading = false
@@ -75,7 +84,7 @@ fun TimeTrackingScreen(
         }
     }
 
-    Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+    Column(modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         Text("Time Tracking", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
 
         if (loading) {
@@ -120,7 +129,10 @@ fun TimeTrackingScreen(
                         }
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                             Text("Entry Time:", style = MaterialTheme.typography.bodyMedium)
-                            Text(currentSession!!.entryTime.substring(11, 19), fontWeight = FontWeight.Medium)
+                            Text(
+                                text = try { currentSession!!.entryTime.substring(11, 19) } catch (e: Exception) { "N/A" },
+                                fontWeight = FontWeight.Medium
+                            )
                         }
                         Divider(modifier = Modifier.padding(vertical = 8.dp))
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
