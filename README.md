@@ -393,11 +393,12 @@ This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) 
 
 ## 💬 Support
 
-**Found a bug?** [Open an issue](https://github.com/yourusername/oneaccess/issues)
+**Found a bug?** [Open an issue](https://github.com/DishaPandit/One-Access/issues)
 
-**Have a question?** [Start a discussion](https://github.com/yourusername/oneaccess/discussions)
 
-**Want to chat?** Reach out at your.email@example.com
+**Have a question?** [Start a discussion](https://github.com/DishaPandit/One-Access/discussions)
+
+**Want to chat?** Reach out at dishapandit1998@gmail.com
 
 ---
 
