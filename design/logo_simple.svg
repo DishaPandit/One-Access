@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://schemas.android.com/2000/svg">
+  <!-- Clean gradient background -->
+  <defs>
+    <linearGradient id="bgGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#2196F3;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#1976D2;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  
+  <circle cx="256" cy="256" r="256" fill="url(#bgGradient)"/>
+  
+  <!-- Modern door icon -->
+  <g transform="translate(256, 256)">
+    <!-- Door -->
+    <rect x="-60" y="-100" width="120" height="200" rx="12" fill="#FFFFFF" opacity="0.95"/>
+    
+    <!-- Handle -->
+    <circle cx="30" cy="10" r="8" fill="#2196F3"/>
+    
+    <!-- NFC symbol (curved lines) -->
+    <g stroke="#FFFFFF" stroke-width="8" fill="none" stroke-linecap="round">
+      <path d="M 70 -30 Q 100 0 70 30" opacity="1"/>
+      <path d="M 85 -20 Q 110 0 85 20" opacity="0.7"/>
+      <path d="M 100 -10 Q 120 0 100 10" opacity="0.5"/>
+    </g>
+  </g>
+</svg>

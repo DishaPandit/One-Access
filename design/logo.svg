@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background circle -->
+  <circle cx="256" cy="256" r="256" fill="#2196F3"/>
+  
+  <!-- Door frame -->
+  <rect x="180" y="100" width="152" height="312" rx="16" ry="16" fill="#FFFFFF" stroke="#1976D2" stroke-width="8"/>
+  
+  <!-- Door panel -->
+  <rect x="196" y="116" width="120" height="280" rx="12" ry="12" fill="#E3F2FD" stroke="#1976D2" stroke-width="4"/>
+  
+  <!-- Door handle -->
+  <circle cx="280" cy="256" r="12" fill="#1976D2"/>
+  <ellipse cx="280" cy="256" rx="8" ry="16" fill="#64B5F6"/>
+  
+  <!-- NFC waves (modern contactless symbol) -->
+  <g stroke="#FFFFFF" stroke-width="12" stroke-linecap="round" fill="none">
+    <path d="M 350 180 Q 380 220 350 260" opacity="0.9"/>
+    <path d="M 370 200 Q 390 230 370 260" opacity="0.7"/>
+    <path d="M 390 220 Q 400 240 390 260" opacity="0.5"/>
+  </g>
+  
+  <!-- Checkmark (access granted) -->
+  <g transform="translate(140, 340)">
+    <circle cx="0" cy="0" r="40" fill="#4CAF50"/>
+    <path d="M -12 0 L -4 8 L 12 -8" stroke="#FFFFFF" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+  </g>
+  
+  <!-- Optional: Small "1" badge to represent "OneAccess" -->
+  <g transform="translate(350, 120)">
+    <circle cx="0" cy="0" r="35" fill="#FF9800"/>
+    <text x="0" y="0" text-anchor="middle" dominant-baseline="central" font-family="Arial, sans-serif" font-size="42" font-weight="bold" fill="#FFFFFF">1</text>
+  </g>
+</svg>
